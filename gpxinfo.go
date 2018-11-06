@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/tkrajina/gpxgo/gpx"
+	"github.com/mbecker/gpxgo/gpx"
 )
 
 func main() {

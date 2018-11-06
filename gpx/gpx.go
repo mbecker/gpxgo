@@ -23,6 +23,7 @@ const (
 type GPXElementInfo interface {
 	Length2D() float64
 	Length3D() float64
+	LengthVincenty() float64
 	Bounds() GpxBounds
 	MovingData() MovingData
 	UphillDownhill() UphillDownhill
@@ -36,6 +37,7 @@ func GetGpxElementInfo(prefix string, gpxDoc GPXElementInfo) string {
 	result += fmt.Sprint(prefix, " Points: ", gpxDoc.GetTrackPointsNo(), "\n")
 	result += fmt.Sprint(prefix, " Length 2D: ", gpxDoc.Length2D()/1000.0, "\n")
 	result += fmt.Sprint(prefix, " Length 3D: ", gpxDoc.Length3D()/1000.0, "\n")
+	result += fmt.Sprint(prefix, " Length Vincenry: ", gpxDoc.LengthVincenty(), "\n")
 
 	bounds := gpxDoc.Bounds()
 	result += fmt.Sprintf("%s Bounds: %f, %f, %f, %f\n", prefix, bounds.MinLatitude, bounds.MaxLatitude, bounds.MinLongitude, bounds.MaxLongitude)
@@ -147,6 +149,15 @@ func (g *GPX) Length3D() float64 {
 		length3d += trk.Length3D()
 	}
 	return length3d
+}
+
+// LengthVincenty returns the Vincenty length of all tracks
+func (g *GPX) LengthVincenty() float64 {
+	var lengthVincenty float64
+	for _, trk := range g.Tracks {
+		lengthVincenty += trk.LengthVincenty()
+	}
+	return lengthVincenty
 }
 
 // TimeBounds returns the time bounds of all tacks in a Gpx.
@@ -671,6 +682,11 @@ func (pt *Point) Distance3D(pt2 Location) float64 {
 	return Distance3D(pt.GetLatitude(), pt.GetLongitude(), pt.GetElevation(), pt2.GetLatitude(), pt2.GetLongitude(), pt2.GetElevation(), false)
 }
 
+// DistanceVincenty returns the geographical distance in km between the GpxWpts pt and pt2 using Vincenty's inverse formula
+func (pt *Point) DistanceVincenty(pt2 Location) (float64, error) {
+	return DistanceVincenty(pt.GetLatitude(), pt.GetLongitude(), pt2.GetLatitude(), pt2.GetLongitude())
+}
+
 // ----------------------------------------------------------------------------------------------------
 
 //TimeBounds contains min/max time
@@ -865,6 +881,20 @@ func (seg *GPXTrackSegment) Length3D() float64 {
 		points[pointNo] = point.Point
 	}
 	return Length3D(points)
+}
+
+// LengthVincenty returns the Vincenty length of a GPX segment.
+func (seg *GPXTrackSegment) LengthVincenty() float64 {
+	points := make([]Point, len(seg.Points))
+	for pointNo, point := range seg.Points {
+		points[pointNo] = point.Point
+	}
+	lengthVincenty, err := LengthVincenty(points)
+	// If the Vincenty formula can not calculate the distance between two points then return "0.0" (inseatd of an error)
+	if err != nil {
+		return 0.0
+	}
+	return lengthVincenty
 }
 
 //GetTrackPointsNo returns the amount of points of the segment
@@ -1359,6 +1389,15 @@ func (trk *GPXTrack) Length3D() float64 {
 		l += d
 	}
 	return l
+}
+
+// LengthVincenty returns the Vincenty length of a GPX track.
+func (trk *GPXTrack) LengthVincenty() float64 {
+	var lengthVincenty float64
+	for _, seg := range trk.Segments {
+		lengthVincenty += seg.LengthVincenty()
+	}
+	return lengthVincenty
 }
 
 //GetTrackPointsNo returns the amount of points on the track

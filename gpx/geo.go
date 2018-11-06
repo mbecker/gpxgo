@@ -6,12 +6,21 @@
 package gpx
 
 import (
+	"fmt"
 	"math"
 	"sort"
 )
 
-const oneDegree = 1000.0 * 10000.8 / 90.0
-const earthRadius = 6371 * 1000
+const (
+	oneDegree           = 1000.0 * 10000.8 / 90.0
+	earthRadius float64 = 6378137 // WGS-84 ellipsoid; See https://en.wikipedia.org/wiki/World_Geodetic_System
+
+	flattening     float64 = 1 / 298.257223563
+	semiMinorAxisB float64 = 6356752.314245
+	//
+	epsilon       = 1e-12
+	maxIterations = 200
+)
 
 //ToRad converts to radial coordinates
 func ToRad(x float64) float64 {
@@ -91,6 +100,90 @@ func Length2D(locs []Point) float64 {
 //Length3D calculates the lenght of given points list including elevation distance
 func Length3D(locs []Point) float64 {
 	return length(locs, true)
+}
+
+// Vincenty formula
+func toRadians(deg float64) float64 {
+	return deg * (math.Pi / 180)
+}
+
+func lengthVincenty(locs []Point) (float64, error) {
+	var previousLoc Point
+	var res float64
+	for k, v := range locs {
+		if k > 0 {
+			previousLoc = locs[k-1]
+			d, err := v.DistanceVincenty(&previousLoc)
+			if err != nil {
+				return 0, err
+			}
+
+			res += d
+		}
+	}
+	return res, nil
+}
+
+// LengthVincenty returns the geographical distance in km between the points p1 (lat1, long1) and p2 (lat2, long2) using Vincenty's inverse formula.
+// The surface of the Earth is approximated by the WGS-84 ellipsoid.
+// This method may fail to converge for nearly antipodal points.
+// https://github.com/asmarques/geodist/blob/master/vincenty.go
+func DistanceVincenty(lat1, long1, lat2, long2 float64) (float64, error) {
+	if lat1 == lat2 && long1 == long2 {
+		return 0, nil
+	}
+
+	U1 := math.Atan((1 - flattening) * math.Tan(toRadians(lat1)))
+	U2 := math.Atan((1 - flattening) * math.Tan(toRadians(lat2)))
+	L := toRadians(long2 - long1)
+	sinU1 := math.Sin(U1)
+	cosU1 := math.Cos(U1)
+	sinU2 := math.Sin(U2)
+	cosU2 := math.Cos(U2)
+	lambda := L
+
+	result := math.NaN()
+
+	for i := 0; i < maxIterations; i++ {
+		curLambda := lambda
+		sinSigma := math.Sqrt(math.Pow(cosU2*math.Sin(lambda), 2) +
+			math.Pow(cosU1*sinU2-sinU1*cosU2*math.Cos(lambda), 2))
+		cosSigma := sinU1*sinU2 + cosU1*cosU2*math.Cos(lambda)
+		sigma := math.Atan2(sinSigma, cosSigma)
+		sinAlpha := (cosU1 * cosU2 * math.Sin(lambda)) / math.Sin(sigma)
+		cosSqrAlpha := 1 - math.Pow(sinAlpha, 2)
+		cos2sigmam := 0.0
+		if cosSqrAlpha != 0 {
+			cos2sigmam = math.Cos(sigma) - ((2 * sinU1 * sinU2) / cosSqrAlpha)
+		}
+		C := (flattening / 16) * cosSqrAlpha * (4 + flattening*(4-3*cosSqrAlpha))
+		lambda = L + (1-C)*flattening*sinAlpha*(sigma+C*sinSigma*(cos2sigmam+C*cosSigma*(-1+2*math.Pow(cos2sigmam, 2))))
+
+		if math.Abs(lambda-curLambda) < epsilon {
+			uSqr := cosSqrAlpha * ((math.Pow(earthRadius, 2) - math.Pow(semiMinorAxisB, 2)) / math.Pow(semiMinorAxisB, 2))
+			k1 := (math.Sqrt(1+uSqr) - 1) / (math.Sqrt(1+uSqr) + 1)
+			A := (1 + (math.Pow(k1, 2) / 4)) / (1 - k1)
+			B := k1 * (1 - (3*math.Pow(k1, 2))/8)
+
+			deltaSigma := B * sinSigma * (cos2sigmam + (B/4)*(cosSigma*(-1+2*math.Pow(cos2sigmam, 2))-
+				(B/6)*cos2sigmam*(-3+4*math.Pow(sinSigma, 2))*(-3+4*math.Pow(cos2sigmam, 2))))
+			s := semiMinorAxisB * A * (sigma - deltaSigma)
+			result = s / 1000
+
+			break
+		}
+	}
+
+	if math.IsNaN(result) {
+		return result, fmt.Errorf("failed to converge for Point(Latitude: %f, Lomgitude: %f) and Point(Latitude: %f, Lomgitude: %f)", lat1, long1, lat2, long2)
+	}
+
+	return result, nil
+}
+
+//Length3D calculates the lenght of given points list including elevation distance
+func LengthVincenty(locs []Point) (float64, error) {
+	return lengthVincenty(locs)
 }
 
 //CalcMaxSpeed returns the maximum speed
