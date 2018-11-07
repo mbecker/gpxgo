@@ -1178,6 +1178,7 @@ func (seg *GPXTrackSegment) MovingData() MovingData {
 	)
 
 	speedsDistances := make([]SpeedsAndDistances, 0)
+	d := make(map[int]SpeedsAndDistances)
 
 	for i := 1; i < len(seg.Points); i++ {
 		prev := seg.Points[i-1]
@@ -1192,6 +1193,8 @@ func (seg *GPXTrackSegment) MovingData() MovingData {
 		if seconds > 0 {
 			speedKmh = (dist / 1000.0) / (timedelta.Seconds() / math.Pow(60, 2))
 		}
+
+		d[i] = SpeedsAndDistances{speedKmh, dist}
 
 		if speedKmh <= defaultStoppedSpeedThreshold {
 			stoppedTime += timedelta.Seconds()
@@ -1219,6 +1222,7 @@ func (seg *GPXTrackSegment) MovingData() MovingData {
 		movingDistance,
 		stoppedDistance,
 		maxSpeed,
+		d,
 	}
 }
 

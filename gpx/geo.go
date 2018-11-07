@@ -36,11 +36,12 @@ type Location interface {
 
 //MovingData contains moving data
 type MovingData struct {
-	MovingTime      float64
-	StoppedTime     float64
-	MovingDistance  float64
-	StoppedDistance float64
-	MaxSpeed        float64
+	MovingTime         float64
+	StoppedTime        float64
+	MovingDistance     float64
+	StoppedDistance    float64
+	MaxSpeed           float64
+	DistancesAndSpeeds map[int]SpeedsAndDistances
 }
 
 //Equals compares to another MovingData struct
@@ -117,7 +118,6 @@ func lengthVincenty(locs []Point) (float64, error) {
 			if err != nil {
 				return 0, err
 			}
-
 			res += d
 		}
 	}
