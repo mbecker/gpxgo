@@ -217,24 +217,26 @@ func (g *GPX) MovingData() MovingData {
 		stoppedDistance float64
 		maxSpeed        float64
 	)
-
+	var speedsAndDistances map[int]SpeedsAndDistances
 	for _, trk := range g.Tracks {
 		md := trk.MovingData()
 		movingTime += md.MovingTime
 		stoppedTime += md.StoppedTime
 		movingDistance += md.MovingDistance
 		stoppedDistance += md.StoppedDistance
+		speedsAndDistances = md.DistancesAndSpeeds
 
 		if md.MaxSpeed > maxSpeed {
 			maxSpeed = md.MaxSpeed
 		}
 	}
 	return MovingData{
-		MovingTime:      movingTime,
-		MovingDistance:  movingDistance,
-		StoppedTime:     stoppedTime,
-		StoppedDistance: stoppedDistance,
-		MaxSpeed:        maxSpeed,
+		MovingTime:         movingTime,
+		MovingDistance:     movingDistance,
+		StoppedTime:        stoppedTime,
+		StoppedDistance:    stoppedDistance,
+		MaxSpeed:           maxSpeed,
+		DistancesAndSpeeds: speedsAndDistances,
 	}
 }
 

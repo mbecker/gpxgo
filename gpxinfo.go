@@ -6,33 +6,31 @@
 package main
 
 import (
-	"flag"
 	"fmt"
+	"io/ioutil"
+	"log"
+	"os"
 	"path/filepath"
 
 	"github.com/mbecker/gpxgo/gpx"
 )
 
 func main() {
-	flag.Parse()
-
-	args := flag.Args()
-	if len(args) != 1 {
-		fmt.Println("Please provide a GPX file path!")
-		return
-	}
-
-	gpxFileArg := args[0]
-	gpxFile, err := gpx.ParseFile(gpxFileArg)
-
+	currentDirectory, err := os.Getwd()
 	if err != nil {
-		fmt.Println("Error opening gpx file: ", err)
-		return
+		log.Fatal(err)
 	}
-
-	gpxPath, _ := filepath.Abs(gpxFileArg)
-
-	fmt.Print("File: ", gpxPath, "\n")
-
-	fmt.Println(gpxFile.GetGpxInfo())
+	gpxDirectory := filepath.Join(currentDirectory, "gpx_files")
+	files, readDirErr := ioutil.ReadDir(gpxDirectory)
+	if readDirErr != nil {
+		panic(readDirErr)
+	}
+	for _, file := range files {
+		gpxFile, gpxParseFileErr := gpx.ParseFile(filepath.Join(gpxDirectory, file.Name()))
+		if gpxParseFileErr != nil {
+			fmt.Printf("%s error parsing file: %s", file.Name(), gpxParseFileErr)
+			continue
+		}
+		fmt.Println(gpxFile.GetGpxInfo())
+	}
 }
