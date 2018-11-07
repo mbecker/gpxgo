@@ -26,6 +26,7 @@ type GPXElementInfo interface {
 	LengthVincenty() (float64, error)
 	Bounds() GpxBounds
 	MovingData() MovingData
+	MovingDataStandardDeviation(sigma float64) MovingData
 	UphillDownhill() UphillDownhill
 	TimeBounds() TimeBounds
 	GetTrackPointsNo() int
@@ -35,32 +36,56 @@ type GPXElementInfo interface {
 func GetGpxElementInfo(prefix string, gpxDoc GPXElementInfo) string {
 	result := ""
 	result += fmt.Sprint(prefix, " Points: ", gpxDoc.GetTrackPointsNo(), "\n")
-	result += fmt.Sprint(prefix, " Length 2D: ", gpxDoc.Length2D()/1000.0, "\n")
-	result += fmt.Sprint(prefix, " Length 3D: ", gpxDoc.Length3D()/1000.0, "\n")
+	result += fmt.Sprint(prefix, " Length 2D (km): ", gpxDoc.Length2D()/1000.0, "\n")
+	result += fmt.Sprint(prefix, " Length 3D (km): ", gpxDoc.Length3D()/1000.0, "\n")
 
 	lengthVincenty, err := gpxDoc.LengthVincenty()
 	if err != nil {
 		result += fmt.Sprint(prefix, " Length Vincenty Error: ", err, "\n")
 	} else {
-		result += fmt.Sprint(prefix, " Length Vincenty: ", lengthVincenty, "\n")
+		result += fmt.Sprint(prefix, " Length Vincenty (km): ", lengthVincenty, "\n")
 	}
 
-	bounds := gpxDoc.Bounds()
-	result += fmt.Sprintf("%s Bounds: %f, %f, %f, %f\n", prefix, bounds.MinLatitude, bounds.MaxLatitude, bounds.MinLongitude, bounds.MaxLongitude)
+	// bounds := gpxDoc.Bounds()
+	// result += fmt.Sprintf("%s Bounds: %f, %f, %f, %f\n", prefix, bounds.MinLatitude, bounds.MaxLatitude, bounds.MinLongitude, bounds.MaxLongitude)
 
 	md := gpxDoc.MovingData()
-	result += fmt.Sprint(prefix, " Moving time: ", md.MovingTime, "\n")
-	result += fmt.Sprint(prefix, " Stopped time: ", md.StoppedTime, "\n")
+	t01, _ := time.ParseDuration(fmt.Sprintf("%ds", int64(md.MovingTime)))
+	t02, _ := time.ParseDuration(fmt.Sprintf("%ds", int64(md.StoppedTime)))
+	result += fmt.Sprintf("%s --- Moving Data ---\n", prefix)
+	result += fmt.Sprintf("%s Moving Data - Moving time (sec): %s\n", prefix, t01)
+	result += fmt.Sprintf("%s Moving Data - Stopped time (sec): %s\n", prefix, t02)
+	result += fmt.Sprint(prefix, " Moving Data - Moving Distance (km): ", md.MovingDistance/1000.0, "\n")
+	result += fmt.Sprint(prefix, " Moving Data - Stopped Distance (km): ", md.StoppedDistance/1000.0, "\n")
+	result += fmt.Sprintf("%s Moving Data - Max speed: %fm/s = %fkm/h\n", prefix, md.MaxSpeed, md.MaxSpeed*60*60/1000.0)
 
-	result += fmt.Sprintf("%s Max speed: %fm/s = %fkm/h\n", prefix, md.MaxSpeed, md.MaxSpeed*60*60/1000.0)
+	mdStandardDeviation := gpxDoc.MovingDataStandardDeviation(1.644854) // 90%
+	t1, _ := time.ParseDuration(fmt.Sprintf("%ds", int64(mdStandardDeviation.MovingTime)))
+	t2, _ := time.ParseDuration(fmt.Sprintf("%ds", int64(mdStandardDeviation.StoppedTime)))
+	result += fmt.Sprintf("%s --- MovingDataStandardDeviation(1.644854 ~ 90%%) ---\n", prefix)
+	result += fmt.Sprintf("%s Standard Deviation - Moving time (sec): %s\n", prefix, t1)
+	result += fmt.Sprintf("%s Standard Deviation - Stopped time (sec): %s\n", prefix, t2)
+	result += fmt.Sprint(prefix, " Standard Deviation - Moving Distance (km): ", mdStandardDeviation.MovingDistance, "\n")
+	result += fmt.Sprint(prefix, " Standard Deviation - Stopped Distance (km): ", mdStandardDeviation.StoppedDistance, "\n")
+	result += fmt.Sprintf("%s Standard Deviation - Max speed: %fm/s = %fkm/h\n", prefix, mdStandardDeviation.MaxSpeed, mdStandardDeviation.MaxSpeed*60*60/1000.0)
 
-	updo := gpxDoc.UphillDownhill()
-	result += fmt.Sprint(prefix, " Total uphill: ", updo.Uphill, "\n")
-	result += fmt.Sprint(prefix, " Total downhill: ", updo.Downhill, "\n")
+	mdStandardDeviation = gpxDoc.MovingDataStandardDeviation(1.959964) // 95%
+	t1, _ = time.ParseDuration(fmt.Sprintf("%ds", int64(mdStandardDeviation.MovingTime)))
+	t2, _ = time.ParseDuration(fmt.Sprintf("%ds", int64(mdStandardDeviation.StoppedTime)))
+	result += fmt.Sprintf("%s --- MovingDataStandardDeviation(1.959964 ~ 95%%) ---\n", prefix)
+	result += fmt.Sprintf("%s Standard Deviation - Moving time (sec): %s\n", prefix, t1)
+	result += fmt.Sprintf("%s Standard Deviation - Stopped time (sec): %s\n", prefix, t2)
+	result += fmt.Sprint(prefix, " Standard Deviation - Moving Distance: ", mdStandardDeviation.MovingDistance, "\n")
+	result += fmt.Sprint(prefix, " Standard Deviation - Stopped Distance: ", mdStandardDeviation.StoppedDistance, "\n")
+	result += fmt.Sprintf("%s Standard Deviation - Max speed: %fm/s = %fkm/h\n", prefix, mdStandardDeviation.MaxSpeed, mdStandardDeviation.MaxSpeed*60*60/1000.0)
 
-	timeBounds := gpxDoc.TimeBounds()
-	result += fmt.Sprint(prefix, " Started: ", timeBounds.StartTime, "\n")
-	result += fmt.Sprint(prefix, " Ended: ", timeBounds.EndTime, "\n")
+	// updo := gpxDoc.UphillDownhill()
+	// result += fmt.Sprint(prefix, " Total uphill: ", updo.Uphill, "\n")
+	// result += fmt.Sprint(prefix, " Total downhill: ", updo.Downhill, "\n")
+
+	// timeBounds := gpxDoc.TimeBounds()
+	// result += fmt.Sprint(prefix, " Started: ", timeBounds.StartTime, "\n")
+	// result += fmt.Sprint(prefix, " Ended: ", timeBounds.EndTime, "\n")
 	return result
 }
 
@@ -108,25 +133,26 @@ func (g *GPX) ToXml(params ToXmlParams) ([]byte, error) {
 func (g *GPX) GetGpxInfo() string {
 	result := ""
 	result += fmt.Sprint("GPX name: ", g.Name, "\n")
-	result += fmt.Sprint("GPX desctiption: ", g.Description, "\n")
-	result += fmt.Sprint("GPX version: ", g.Version, "\n")
-	result += fmt.Sprint("Author: ", g.AuthorName, "\n")
-	result += fmt.Sprint("Email: ", g.AuthorEmail, "\n\n")
+	// result += fmt.Sprint("GPX desctiption: ", g.Description, "\n")
+	// result += fmt.Sprint("GPX version: ", g.Version, "\n")
+	// result += fmt.Sprint("Author: ", g.AuthorName, "\n")
+	// result += fmt.Sprint("Email: ", g.AuthorEmail, "\n")
+	// result += fmt.Sprintf("Duration: %f sec", g.Duration())
 
 	result += fmt.Sprint("\nGlobal stats:", "\n")
 	result += GetGpxElementInfo("", g)
 	result += "\n"
 
-	for trackNo, track := range g.Tracks {
-		result += fmt.Sprintf("\nTrack #%d:\n", 1+trackNo)
-		result += GetGpxElementInfo("    ", &track)
-		result += "\n"
-		for segmentNo, segment := range track.Segments {
-			result += fmt.Sprintf("\nTrack #%d, segment #%d:\n", 1+trackNo, 1+segmentNo)
-			result += GetGpxElementInfo("        ", &segment)
-			result += "\n"
-		}
-	}
+	// for trackNo, track := range g.Tracks {
+	// 	result += fmt.Sprintf("\nTrack #%d:\n", 1+trackNo)
+	// 	result += GetGpxElementInfo("    ", &track)
+	// 	result += "\n"
+	// 	for segmentNo, segment := range track.Segments {
+	// 		result += fmt.Sprintf("\nTrack #%d, segment #%d:\n", 1+trackNo, 1+segmentNo)
+	// 		result += GetGpxElementInfo("        ", &segment)
+	// 		result += "\n"
+	// 	}
+	// }
 	return result
 }
 
@@ -208,6 +234,35 @@ func (g *GPX) ElevationBounds() ElevationBounds {
 	return minmax
 }
 
+func (g *GPX) MovingDataStandardDeviation(sigma float64) MovingData {
+	var (
+		movingTime      float64
+		stoppedTime     float64
+		movingDistance  float64
+		stoppedDistance float64
+		maxSpeed        float64
+	)
+
+	for _, trk := range g.Tracks {
+		md := trk.MovingDataStandardDeviation(sigma)
+		movingTime += md.MovingTime
+		stoppedTime += md.StoppedTime
+		movingDistance += md.MovingDistance
+		stoppedDistance += md.StoppedDistance
+
+		if md.MaxSpeed > maxSpeed {
+			maxSpeed = md.MaxSpeed
+		}
+	}
+	return MovingData{
+		MovingTime:      movingTime,
+		MovingDistance:  movingDistance,
+		StoppedTime:     stoppedTime,
+		StoppedDistance: stoppedDistance,
+		MaxSpeed:        maxSpeed,
+	}
+}
+
 // MovingData returns the moving data for all tracks in a Gpx.
 func (g *GPX) MovingData() MovingData {
 	var (
@@ -217,26 +272,24 @@ func (g *GPX) MovingData() MovingData {
 		stoppedDistance float64
 		maxSpeed        float64
 	)
-	var speedsAndDistances map[int]SpeedsAndDistances
+
 	for _, trk := range g.Tracks {
 		md := trk.MovingData()
 		movingTime += md.MovingTime
 		stoppedTime += md.StoppedTime
 		movingDistance += md.MovingDistance
 		stoppedDistance += md.StoppedDistance
-		speedsAndDistances = md.DistancesAndSpeeds
 
 		if md.MaxSpeed > maxSpeed {
 			maxSpeed = md.MaxSpeed
 		}
 	}
 	return MovingData{
-		MovingTime:         movingTime,
-		MovingDistance:     movingDistance,
-		StoppedTime:        stoppedTime,
-		StoppedDistance:    stoppedDistance,
-		MaxSpeed:           maxSpeed,
-		DistancesAndSpeeds: speedsAndDistances,
+		MovingTime:      movingTime,
+		MovingDistance:  movingDistance,
+		StoppedTime:     stoppedTime,
+		StoppedDistance: stoppedDistance,
+		MaxSpeed:        maxSpeed,
 	}
 }
 
@@ -667,6 +720,8 @@ type Point struct {
 	Latitude  float64
 	Longitude float64
 	Elevation NullableFloat64
+
+	Duration float64 // Used for the standard deviation
 }
 
 //GetLatitude returns the latitude
@@ -1170,6 +1225,114 @@ func (seg *GPXTrackSegment) StoppedPositions() []TrackPosition {
 	return result
 }
 
+// MovingDataStandardDeviation returs the moving data (moving time, stopped time, moving distance, stopped distance)
+// within the standard deviation and the confidence interval σ
+// µ - 1σ = 68%  (1σ ~ 68.2689492%)
+// µ - 1.644854σ = 90% (1.644854σ ~ 90%)
+// µ - 1.959964 = 95% (1.959964σ ~ 95%)
+// µ - 2σ = 95% (2σ ~ 95.4499736%)
+// µ - 2σ = 99,7% (3σ ~ 99.7300204%)
+// See: https://en.wikipedia.org/wiki/Standard_deviation
+// σ sigma
+// μ mu: Mean - All summed values / count of values
+func (seg *GPXTrackSegment) MovingDataStandardDeviation(sigma float64) MovingData {
+	var (
+		movingTime      float64
+		stoppedTime     float64
+		movingDistance  float64
+		stoppedDistance float64
+	)
+
+	speedsDistances := make([]SpeedsAndDistances, 0)
+
+	// 1. Define the mean mu (μ) for a population series: All summed values / count of values
+	μ := seg.Duration() / float64(len(seg.Points)) // The mean mu (μ) for a population series
+
+	// 2.a) Define Deviation for each point: (x1−μ)
+	// 2.b) Square each deviation: (x1−μ)^2
+	// 2.c) Sum all squared deviation from each point
+	var squaredDeviationSum float64 // Sum of all squared deviation from each point
+
+	// ToDo: point.Duration - Can't it be caluclated by parsing the xml?
+	// The first point in the slice seg.Points is the first point at all; it does not have any previous point, so it does not have any duration
+	allPoints := seg.Points[:0] // https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating
+	for i := 1; i < len(seg.Points); i++ {
+		previousPoint := seg.Points[i-1]
+		point := seg.Points[i]
+		// ToDo: How to manipulate data in a slice
+		// ptDiff := point.TimeDiff(&previousPoint)
+		timedelta := point.Timestamp.Sub(previousPoint.Timestamp)
+		point.Duration = timedelta.Seconds()
+		allPoints = append(allPoints, point)
+		squaredDeviationSum += math.Pow(point.Duration-μ, 2)
+	}
+
+	// 3. Define the variance of the population: Divide the sum of all squared deviation of each points by the number of the population (in the previous step we used all point except the first one: len(seg.Points)-1)
+	variance := squaredDeviationSum / float64((len(seg.Points) - 1))
+
+	// 4. Define the standard deviation
+	standardDeviation := math.Sqrt(variance)
+
+	// 5. Define the the x1 and x2 value in which the points should be (sigma σ defines the range)
+	x1 := μ - sigma*standardDeviation
+	x2 := μ + sigma*standardDeviation
+
+	// Use only the poins which are in the range x1 < point.Duration < x2
+	for i := 0; i < len(allPoints); i++ {
+		// The first Point in allPoints is the second in seg.Points
+		var previousPoint GPXPoint
+		if i == 0 {
+			previousPoint = seg.Points[0]
+		} else {
+			previousPoint = allPoints[i-1]
+		}
+		point := allPoints[i]
+		// timedelta := point.Timestamp.Sub(previousPoint.Timestamp)
+		// point.Duration = timedelta.Seconds()
+
+		if x1 <= point.Duration && point.Duration <= x2 {
+			distance, err := point.DistanceVincenty(&previousPoint)
+			if err != nil {
+				fmt.Printf("Standard Deviation Error: %s\n", err)
+				distance = point.Distance3D(&previousPoint)
+			}
+			// distance := point.Distance3D(&previousPoint)
+			movingDistance += distance
+			movingTime += point.Duration
+
+			sd := SpeedsAndDistances{distance * 1000 / point.Duration, distance} // distance (km) / point.Duration (sec) / 60 (sec-min) / 60 (min->h) -> km/h
+			speedsDistances = append(speedsDistances, sd)
+		} else {
+			stoppedTime += point.Duration
+			distance, err := point.DistanceVincenty(&previousPoint)
+			if err != nil {
+				fmt.Printf("Standard Deviation Error: %s\n", err)
+				distance = point.Distance3D(&previousPoint)
+			}
+			// distance := point.Distance3D(&previousPoint)
+			stoppedDistance += distance
+		}
+
+	}
+
+	var maxSpeed float64
+	if len(speedsDistances) > 0 {
+		maxSpeed = CalcMaxSpeed(speedsDistances)
+		if math.IsNaN(maxSpeed) {
+			maxSpeed = 0
+		}
+	}
+
+	return MovingData{
+		movingTime,
+		stoppedTime,
+		movingDistance,
+		stoppedDistance,
+		maxSpeed,
+	}
+
+}
+
 // MovingData returns the moving data of a GPX segment.
 func (seg *GPXTrackSegment) MovingData() MovingData {
 	var (
@@ -1180,7 +1343,6 @@ func (seg *GPXTrackSegment) MovingData() MovingData {
 	)
 
 	speedsDistances := make([]SpeedsAndDistances, 0)
-	d := make(map[int]SpeedsAndDistances)
 
 	for i := 1; i < len(seg.Points); i++ {
 		prev := seg.Points[i-1]
@@ -1195,8 +1357,6 @@ func (seg *GPXTrackSegment) MovingData() MovingData {
 		if seconds > 0 {
 			speedKmh = (dist / 1000.0) / (timedelta.Seconds() / math.Pow(60, 2))
 		}
-
-		d[i] = SpeedsAndDistances{speedKmh, dist}
 
 		if speedKmh <= defaultStoppedSpeedThreshold {
 			stoppedTime += timedelta.Seconds()
@@ -1224,7 +1384,6 @@ func (seg *GPXTrackSegment) MovingData() MovingData {
 		movingDistance,
 		stoppedDistance,
 		maxSpeed,
-		d,
 	}
 }
 
@@ -1552,6 +1711,35 @@ func (trk *GPXTrack) Join(segNo, segNo2 int) {
 // track.
 func (trk *GPXTrack) JoinNext(segNo int) {
 	trk.Join(segNo, segNo+1)
+}
+
+func (trk *GPXTrack) MovingDataStandardDeviation(sigma float64) MovingData {
+	var (
+		movingTime      float64
+		stoppedTime     float64
+		movingDistance  float64
+		stoppedDistance float64
+		maxSpeed        float64
+	)
+
+	for _, seg := range trk.Segments {
+		md := seg.MovingDataStandardDeviation(sigma)
+		movingTime += md.MovingTime
+		stoppedTime += md.StoppedTime
+		movingDistance += md.MovingDistance
+		stoppedDistance += md.StoppedDistance
+
+		if md.MaxSpeed > maxSpeed {
+			maxSpeed = md.MaxSpeed
+		}
+	}
+	return MovingData{
+		MovingTime:      movingTime,
+		MovingDistance:  movingDistance,
+		StoppedTime:     stoppedTime,
+		StoppedDistance: stoppedDistance,
+		MaxSpeed:        maxSpeed,
+	}
 }
 
 // MovingData returns the moving data of a GPX track.

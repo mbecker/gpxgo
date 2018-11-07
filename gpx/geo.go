@@ -36,12 +36,11 @@ type Location interface {
 
 //MovingData contains moving data
 type MovingData struct {
-	MovingTime         float64
-	StoppedTime        float64
-	MovingDistance     float64
-	StoppedDistance    float64
-	MaxSpeed           float64
-	DistancesAndSpeeds map[int]SpeedsAndDistances
+	MovingTime      float64
+	StoppedTime     float64
+	MovingDistance  float64
+	StoppedDistance float64
+	MaxSpeed        float64
 }
 
 //Equals compares to another MovingData struct
